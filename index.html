@@ -1,0 +1,3078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baguio & Benguet Waze GPS & Hazard Tracker</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #0284c7;
+            --cyan-gps: #00e5ff;
+            --cyan-gps-glow: rgba(0, 229, 255, 0.55);
+            --background-color: #090e1a;
+            --surface-color: #131c31;
+            --surface-elevated: #1c2842;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #2a3958;
+            --font-family-base: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+            /* Critical / Not Passable */
+            --critical-bg: rgba(220, 38, 38, 0.22);
+            --critical-border: #ef4444;
+            --critical-text: #fecaca;
+
+            /* Accident */
+            --accident-bg: rgba(234, 88, 12, 0.22);
+            --accident-border: #f97316;
+            --accident-text: #fed7aa;
+
+            /* Danger / Heavy Traffic */
+            --danger-bg: rgba(225, 29, 72, 0.18);
+            --danger-border: #f43f5e;
+            --danger-text: #fda4af;
+
+            /* Warning / Road Work & Fog */
+            --warning-bg: rgba(217, 119, 6, 0.2);
+            --warning-border: #f59e0b;
+            --warning-text: #fde68a;
+
+            /* Success / Clear Route */
+            --success-bg: rgba(16, 185, 129, 0.16);
+            --success-border: #10b981;
+            --success-text: #6ee7b7;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family-base);
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            padding: 1.25rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated Rain Overlay */
+        .rain-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .drop {
+            position: absolute;
+            background: linear-gradient(transparent, rgba(56, 189, 248, 0.45));
+            width: 1px;
+            height: 22px;
+            opacity: 0.55;
+            animation: fall 0.85s linear infinite;
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-30px); }
+            100% { transform: translateY(100vh); }
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #1d4ed8 0%, #0f172a 100%);
+            color: #fff;
+            padding: 1.1rem 1.4rem;
+            border-radius: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            position: relative;
+            z-index: 2;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+        }
+
+        .app-logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #00e5ff, #2563eb);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.55rem;
+            box-shadow: 0 0 18px rgba(0, 229, 255, 0.45);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            flex-shrink: 0;
+        }
+
+        .header-brand h1 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .header-brand p {
+            font-size: 0.82rem;
+            color: #bae6fd;
+            margin-top: 0.15rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: none;
+            padding: 0.55rem 0.95rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.83rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.38rem;
+            transition: all 0.18s ease;
+        }
+
+        .btn-primary { background-color: var(--secondary-color); color: white; }
+        .btn-primary:hover { background-color: #0369a1; }
+        .btn-gps {
+            background: linear-gradient(135deg, #00b4d8, #0077b6);
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(0, 229, 255, 0.35);
+        }
+        .btn-gps:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .btn-locate {
+            background: linear-gradient(135deg, #2563eb, #00b4d8);
+            color: #ffffff;
+            border: 1px solid rgba(0, 229, 255, 0.45);
+            box-shadow: 0 3px 12px rgba(37, 99, 235, 0.35);
+        }
+        .btn-locate:hover { filter: brightness(1.12); }
+        .btn-danger { background-color: #dc2626; color: white; box-shadow: 0 3px 10px rgba(220, 38, 38, 0.35); }
+        .btn-danger:hover { background-color: #b91c1c; }
+        .btn-success { background-color: #059669; color: white; }
+        .btn-success:hover { background-color: #047857; }
+        .btn-secondary {
+            background-color: rgba(15, 23, 42, 0.75);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .btn-secondary:hover { background-color: rgba(30, 41, 59, 0.95); }
+        .btn-sound-active { background-color: #d97706; color: white; border: 1px solid #fbbf24; }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        /* Waze Live Hazard Ticker */
+        .waze-alert-banner {
+            background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 50%, #7c2d12 100%);
+            border: 1.5px solid var(--critical-border);
+            border-radius: 12px;
+            padding: 0.8rem 1.15rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            box-shadow: 0 0 22px rgba(239, 68, 68, 0.28);
+            position: relative;
+            z-index: 2;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .waze-alert-banner:hover { transform: translateY(-1px); }
+        .waze-alert-banner.hidden { display: none; }
+
+        .waze-alert-left {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            min-width: 0;
+        }
+
+        .pulse-siren {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.25);
+            border: 2px solid #fca5a5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            animation: sirenPulse 1.4s infinite;
+        }
+
+        @keyframes sirenPulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.75); }
+            70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .waze-ticker-content { min-width: 0; }
+        .waze-ticker-label {
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #fca5a5;
+        }
+        .waze-ticker-text {
+            font-size: 0.94rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 0.1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .waze-ticker-sub {
+            font-size: 0.79rem;
+            color: #fed7aa;
+            margin-top: 0.1rem;
+        }
+
+        /* Main Workspace Grid: Interactive GPS Map + Feed */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 1.15rem;
+            align-items: start;
+            position: relative;
+            z-index: 2;
+        }
+
+        @media (max-width: 920px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Map & Navigation Panel */
+        .map-panel {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* In-App GPS Route Planner Bar */
+        .gps-planner-bar {
+            background: var(--surface-elevated);
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+        }
+
+        .planner-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--cyan-gps);
+        }
+
+        .planner-inputs {
+            display: grid;
+            grid-template-columns: auto 1fr auto 1fr auto;
+            gap: 0.45rem;
+            align-items: center;
+        }
+
+        @media (max-width: 720px) {
+            .planner-inputs {
+                grid-template-columns: 1fr;
+            }
+            .swap-btn {
+                justify-self: center;
+                transform: rotate(90deg);
+            }
+        }
+
+        .gps-telemetry-strip {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(9, 14, 26, 0.72);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 8px;
+            padding: 0.42rem 0.7rem;
+            font-size: 0.76rem;
+        }
+
+        .gps-lock-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: 700;
+            color: #7dd3fc;
+        }
+
+        .gps-lock-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #38bdf8;
+            box-shadow: 0 0 8px #38bdf8;
+            animation: gpsPulseDot 1.4s infinite;
+        }
+
+        .gps-lock-dot.simulated {
+            background: #fbbf24;
+            box-shadow: 0 0 8px #fbbf24;
+        }
+
+        @keyframes gpsPulseDot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.45); opacity: 0.6; }
+        }
+
+        .gps-sim-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .gps-mini-select {
+            background: var(--surface-color);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.22rem 0.45rem;
+            font-size: 0.73rem;
+            font-weight: 600;
+            outline: none;
+        }
+
+        /* Map Viewport */
+        .map-viewport {
+            position: relative;
+            width: 100%;
+            height: 440px;
+            background: #090e1a;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        .map-viewport svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* SVG Map Elements */
+        .map-grid-line { stroke: #1e293b; stroke-width: 1; stroke-dasharray: 4 4; }
+        .topo-ring { fill: none; stroke: #132238; stroke-width: 1.5; stroke-dasharray: 6 6; }
+        .road-casing { fill: none; stroke: #0f172a; stroke-width: 11; stroke-linecap: round; stroke-linejoin: round; }
+        .road-base { fill: none; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; transition: stroke 0.2s ease; }
+        .road-status-success { stroke: #10b981; }
+        .road-status-warning { stroke: #f59e0b; }
+        .road-status-danger { stroke: #f97316; }
+        .road-status-accident { stroke: #ea580c; }
+        .road-status-critical { stroke: #ef4444; stroke-dasharray: 8 4; animation: redDash 1.2s infinite linear; }
+        .road-highlighted { stroke: #00e5ff !important; stroke-width: 9 !important; filter: drop-shadow(0 0 8px #00e5ff); }
+
+        @keyframes redDash {
+            to { stroke-dashoffset: -24; }
+        }
+
+        .road-label {
+            fill: #94a3b8;
+            font-size: 9.5px;
+            font-weight: 700;
+            pointer-events: none;
+            paint-order: stroke;
+            stroke: #090e1a;
+            stroke-width: 3px;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .landmark-dot {
+            fill: #38bdf8;
+            stroke: #090e1a;
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: r 0.15s ease;
+        }
+        .landmark-dot:hover { r: 8px; fill: #00e5ff; }
+
+        .landmark-label {
+            fill: #cbd5e1;
+            font-size: 8.5px;
+            font-weight: 700;
+            pointer-events: none;
+            paint-order: stroke;
+            stroke: #090e1a;
+            stroke-width: 3px;
+        }
+
+        .hazard-pin {
+            cursor: pointer;
+            filter: drop-shadow(0 3px 6px rgba(0,0,0,0.6));
+            transition: transform 0.15s ease;
+        }
+        .hazard-pin:hover { transform: scale(1.15); }
+
+        .gps-route-glow {
+            fill: none;
+            stroke: rgba(0, 229, 255, 0.35);
+            stroke-width: 14;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+
+        .gps-route-line {
+            fill: none;
+            stroke: #00e5ff;
+            stroke-width: 6.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 12 6;
+            animation: routeDash 1s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes routeDash {
+            to { stroke-dashoffset: -18; }
+        }
+
+        /* Turn-by-Turn Navigation Top HUD */
+        .nav-hud-top {
+            position: absolute;
+            top: 0.75rem;
+            left: 0.75rem;
+            right: 0.75rem;
+            background: rgba(11, 20, 38, 0.94);
+            backdrop-filter: blur(8px);
+            border: 1.5px solid var(--cyan-gps);
+            border-radius: 12px;
+            padding: 0.7rem 0.95rem;
+            display: none;
+            align-items: center;
+            gap: 0.85rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.65);
+            z-index: 10;
+            animation: slideDownHud 0.25s ease;
+        }
+
+        .nav-hud-top.active {
+            display: flex;
+        }
+
+        @keyframes slideDownHud {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .map-floating-locate {
+            position: absolute;
+            right: 0.85rem;
+            bottom: 4.35rem;
+            z-index: 9;
+            background: rgba(11, 20, 38, 0.92);
+            color: var(--cyan-gps);
+            border: 1.5px solid var(--cyan-gps);
+            border-radius: 999px;
+            padding: 0.45rem 0.85rem;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.65);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.15s ease;
+        }
+
+        .map-floating-locate:hover {
+            background: var(--cyan-gps);
+            color: #090e1a;
+        }
+
+        .proximity-radar-pill {
+            position: absolute;
+            left: 0.85rem;
+            bottom: 4.35rem;
+            z-index: 9;
+            background: rgba(127, 29, 29, 0.94);
+            color: #fecaca;
+            border: 1.5px solid #ef4444;
+            border-radius: 10px;
+            padding: 0.45rem 0.8rem;
+            font-size: 0.76rem;
+            font-weight: 800;
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+            display: none;
+            align-items: center;
+            gap: 0.45rem;
+            max-width: 66%;
+            animation: sirenPulse 1.5s infinite;
+        }
+
+        .proximity-radar-pill.active {
+            display: flex;
+        }
+
+        .turn-arrow-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: rgba(0, 229, 255, 0.18);
+            border: 1px solid var(--cyan-gps);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.45rem;
+            color: var(--cyan-gps);
+            flex-shrink: 0;
+        }
+
+        .nav-instruction-block {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .nav-step-dist {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--cyan-gps);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .nav-step-text {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-top: 0.1rem;
+        }
+
+        .nav-reroute-tag {
+            display: inline-block;
+            margin-top: 0.25rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: rgba(239, 68, 68, 0.25);
+            color: #fecaca;
+            border: 1px solid #ef4444;
+            padding: 0.12rem 0.45rem;
+            border-radius: 6px;
+        }
+
+        /* Turn-by-Turn Navigation Bottom ETA Bar */
+        .nav-hud-bottom {
+            position: absolute;
+            bottom: 0.75rem;
+            left: 0.75rem;
+            right: 0.75rem;
+            background: rgba(11, 20, 38, 0.94);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.65rem 0.95rem;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+            z-index: 10;
+        }
+
+        .nav-hud-bottom.active {
+            display: flex;
+        }
+
+        .eta-metrics {
+            display: flex;
+            align-items: baseline;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .eta-time {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #34d399;
+        }
+
+        .eta-dist {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        /* Map Legend Bar */
+        .map-legend {
+            padding: 0.65rem 1rem;
+            background: #0d1526;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.85rem;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .legend-dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 0.3rem;
+        }
+
+        /* Right Column: Live Feed & Filters */
+        .feed-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+
+        .status-box {
+            background-color: var(--surface-color);
+            border-left: 4px solid var(--secondary-color);
+            border-top: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.82rem;
+        }
+
+        .counter-critical {
+            font-weight: 700;
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.18);
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .controls-bar {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.55rem 0.95rem;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.86rem;
+            outline: none;
+            background-color: var(--surface-color);
+            color: var(--text-primary);
+        }
+
+        .search-input:focus {
+            border-color: var(--cyan-gps);
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.38rem 0.72rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.77rem;
+            transition: all 0.18s ease;
+        }
+
+        .filter-btn.active, .filter-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .filter-btn[data-filter="critical"].active {
+            background-color: #dc2626;
+            border-color: #ef4444;
+        }
+
+        .filter-btn[data-filter="accident"].active {
+            background-color: #ea580c;
+            border-color: #f97316;
+        }
+
+        .cards-grid {
+            display: grid;
+            gap: 0.75rem;
+            max-height: 610px;
+            overflow-y: auto;
+            padding-right: 0.2rem;
+        }
+
+        .cards-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+        .cards-grid::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 999px;
+        }
+
+        .empty-state {
+            background: var(--surface-color);
+            border: 1px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+        }
+
+        .card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.95rem 1.05rem;
+            padding-bottom: 1.65rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: var(--cyan-gps);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        }
+
+        .card-critical {
+            border-color: rgba(239, 68, 68, 0.65);
+            background: linear-gradient(135deg, rgba(127, 29, 29, 0.28) 0%, var(--surface-color) 70%);
+        }
+
+        .card-accident {
+            border-color: rgba(249, 115, 22, 0.55);
+            background: linear-gradient(135deg, rgba(124, 45, 18, 0.24) 0%, var(--surface-color) 70%);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .card-top h3 {
+            font-size: 0.98rem;
+            color: #f8fafc;
+        }
+
+        .hazard-tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.12rem 0.48rem;
+            border-radius: 6px;
+            background: rgba(9, 14, 26, 0.75);
+            border: 1px solid var(--border-color);
+            color: #e2e8f0;
+            margin-top: 0.2rem;
+        }
+
+        .card-sub {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.35;
+        }
+
+        .card-actions-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.2rem;
+        }
+
+        .confirm-pill {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .mini-nav-btn {
+            background: rgba(0, 229, 255, 0.14);
+            color: var(--cyan-gps);
+            border: 1px solid rgba(0, 229, 255, 0.4);
+            border-radius: 6px;
+            padding: 0.25rem 0.55rem;
+            font-size: 0.74rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .mini-nav-btn:hover {
+            background: var(--cyan-gps);
+            color: #090e1a;
+        }
+
+        /* Lane Track & Roadblock */
+        .lane-track {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 14px;
+            background: rgba(9, 14, 26, 0.8);
+            border-top: 1px dashed rgba(255, 255, 255, 0.15);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+        }
+
+        .car {
+            position: absolute;
+            bottom: 2px;
+            width: 24px;
+            height: 8px;
+            border-radius: 3px 5px 2px 2px;
+        }
+
+        .car-accident { background: var(--accident-border); box-shadow: 0 0 8px var(--accident-border); animation: drive 10s infinite linear; }
+        .car-danger { background: var(--danger-border); box-shadow: 0 0 8px var(--danger-border); animation: drive 7.5s infinite linear; }
+        .car-warning { background: var(--warning-border); box-shadow: 0 0 8px var(--warning-border); animation: drive 5s infinite linear; }
+        .car-success { background: var(--success-border); box-shadow: 0 0 8px var(--success-border); animation: drive 2.2s infinite linear; }
+
+        @keyframes drive { 0% { left: -35px; } 100% { left: 100%; } }
+
+        .roadblock-track {
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                -45deg,
+                rgba(239, 68, 68, 0.28),
+                rgba(239, 68, 68, 0.28) 9px,
+                rgba(9, 14, 26, 0.9) 9px,
+                rgba(9, 14, 26, 0.9) 18px
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.66rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: #fecaca;
+            animation: barrierFlash 1.1s infinite alternate;
+        }
+
+        @keyframes barrierFlash {
+            0% { opacity: 0.65; }
+            100% { opacity: 1; }
+        }
+
+        /* Badges */
+        .badge {
+            padding: 0.28rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .badge-critical {
+            background-color: var(--critical-bg);
+            color: var(--critical-text);
+            border: 1px solid var(--critical-border);
+            animation: badgePulse 1.4s infinite;
+        }
+        @keyframes badgePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .badge-accident { background-color: var(--accident-bg); color: var(--accident-text); border: 1px solid var(--accident-border); }
+        .badge-danger { background-color: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+        .badge-warning { background-color: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+        .badge-success { background-color: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+
+        /* Floating Toast Notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 1.25rem;
+            right: 1.25rem;
+            z-index: 1500;
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            max-width: 370px;
+            width: calc(100% - 2.5rem);
+            pointer-events: none;
+        }
+
+        .waze-toast {
+            background: #131c31;
+            border-left: 5px solid var(--critical-border);
+            border-top: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 0.9rem 1.05rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65);
+            pointer-events: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            animation: slideInToast 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .waze-toast.toast-accident { border-left-color: var(--accident-border); }
+        .waze-toast.toast-gps { border-left-color: var(--cyan-gps); }
+        .waze-toast.toast-success { border-left-color: var(--success-border); }
+
+        @keyframes slideInToast {
+            from { transform: translateX(110%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast-icon { font-size: 1.4rem; line-height: 1; }
+        .toast-body { flex: 1; min-width: 0; }
+        .toast-title {
+            font-size: 0.8rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #fca5a5;
+            margin-bottom: 0.15rem;
+        }
+        .waze-toast.toast-accident .toast-title { color: #fdba74; }
+        .waze-toast.toast-gps .toast-title { color: var(--cyan-gps); }
+        .waze-toast.toast-success .toast-title { color: #6ee7b7; }
+        .toast-msg { font-size: 0.83rem; color: var(--text-primary); line-height: 1.35; }
+        .toast-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(9, 14, 26, 0.85);
+            backdrop-filter: blur(4px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+
+        .modal {
+            background: var(--surface-color);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 1.4rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 44px rgba(0, 0, 0, 0.65);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.7rem;
+        }
+
+        .modal-body p {
+            margin-bottom: 0.65rem;
+            font-size: 0.9rem;
+            line-height: 1.45;
+        }
+
+        .detour-callout {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid rgba(0, 229, 255, 0.35);
+            border-radius: 10px;
+            padding: 0.75rem 0.9rem;
+            margin-top: 0.75rem;
+            color: #e0f2fe;
+            font-size: 0.85rem;
+        }
+
+        .verify-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 1rem;
+            padding-top: 0.85rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .modal-footer {
+            margin-top: 1.15rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .form-group { margin-bottom: 0.85rem; }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.83rem;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.52rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.88rem;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: var(--cyan-gps);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="rain-container" id="rain"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-brand">
+            <div class="app-logo">🧭</div>
+            <div>
+                <h1>Baguio & Benguet Waze GPS</h1>
+                <p>Built-in hazard-aware turn-by-turn routing & live Cordillera road telemetry</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" id="soundToggleBtn" title="Toggle Waze Voice/Chime Alerts">🔇 Audio Off</button>
+            <button class="btn btn-danger" id="addIncidentBtn">+ Report Hazard</button>
+            <button class="btn btn-primary" id="refreshBtn">🔄 Sync Live</button>
+            <button class="btn btn-secondary" id="resetDataBtn" title="Restore default Baguio & Benguet demo data">↺ Reset Demo</button>
+        </div>
+    </header>
+
+    <!-- Waze-Style Live Critical Hazard & Accident Ticker -->
+    <div class="waze-alert-banner" id="wazeAlertBanner" role="alert">
+        <div class="waze-alert-left">
+            <div class="pulse-siren" id="tickerIcon">⛔</div>
+            <div class="waze-ticker-content">
+                <div class="waze-ticker-label" id="tickerLabel">🚨 WAZE ROAD CLOSURE • CLICK FOR DETOUR & DETAILS</div>
+                <div class="waze-ticker-text" id="tickerMainText">Loading active road closures & hazards...</div>
+                <div class="waze-ticker-sub" id="tickerSubText"></div>
+            </div>
+        </div>
+        <span class="badge badge-critical" id="tickerBadge">NOT PASSABLE</span>
+    </div>
+
+    <!-- Main Interactive Workspace: Left = Built-in Vector Map & GPS | Right = Live Feed -->
+    <div class="workspace-grid">
+
+        <!-- Left Column: Interactive Vector Map & Built-In GPS Routing -->
+        <section class="map-panel" aria-label="Interactive Baguio & Benguet GPS Map">
+            <div class="gps-planner-bar">
+                <div class="planner-title">
+                    <span>🛰️ In-App Waze Turn-by-Turn Navigator</span>
+                    <span id="gpsEngineStatus" style="color: #6ee7b7;">Ready • Live GPS & Auto-Detour</span>
+                </div>
+                <div class="planner-inputs">
+                    <button type="button" class="btn btn-locate" id="locateMeBtn" title="Detect real browser GPS or snap to Baguio">📍 Locate Me</button>
+                    <select id="originSelect" class="gps-select" aria-label="Starting Point"></select>
+                    <button type="button" class="swap-btn" id="swapLocationsBtn" title="Swap Origin & Destination">⇄</button>
+                    <select id="destSelect" class="gps-select" aria-label="Destination"></select>
+                    <button type="button" class="btn btn-gps" id="startGpsBtn">🚀 Go Now</button>
+                </div>
+                <div class="gps-telemetry-strip">
+                    <div class="gps-lock-badge">
+                        <span class="gps-lock-dot" id="gpsLockDot"></span>
+                        <span id="gpsCoordStatus">📡 GPS Standby • Click "Locate Me" or tap map to set pin</span>
+                    </div>
+                    <div class="gps-sim-controls">
+                        <label for="simPresetSelect" style="color: var(--text-secondary); font-weight: 600;">Test GPS:</label>
+                        <select id="simPresetSelect" class="gps-mini-select" aria-label="Simulate Baguio GPS Location">
+                            <option value="">-- Simulate Location --</option>
+                            <option value="session_rd">Session Road / SM Baguio (16.412°N)</option>
+                            <option value="burnham_park">Burnham Park / UB Area (16.412°N)</option>
+                            <option value="bgh_rotunda">BGH Rotunda / Kennon Approach (16.401°N)</option>
+                            <option value="camp_john_hay">Camp John Hay Gate (16.398°N)</option>
+                            <option value="marcos_hwy">Marcos Hwy Viaduct (16.391°N)</option>
+                            <option value="la_trinidad">La Trinidad Km 5 (16.448°N)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="map-viewport" id="mapViewport">
+                <!-- Turn-by-Turn Top HUD -->
+                <div class="nav-hud-top" id="navHudTop">
+                    <div class="turn-arrow-box" id="navTurnIcon">⬆️</div>
+                    <div class="nav-instruction-block">
+                        <div class="nav-step-dist" id="navStepDist">Starting Route...</div>
+                        <div class="nav-step-text" id="navStepText">Calculating safest path...</div>
+                        <div class="nav-reroute-tag" id="navRerouteTag" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- Interactive Vector Map of Baguio & Benguet -->
+                <svg id="baguioMapSvg" viewBox="0 0 800 620" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="4" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                    </defs>
+
+                    <!-- Background Grid & Mountain Contour Lines -->
+                    <g id="mapBackgroundLayer"></g>
+
+                    <!-- Road Network Base & Status Layer -->
+                    <g id="mapRoadsLayer"></g>
+
+                    <!-- Active Blue/Cyan GPS Route Highlight Layer -->
+                    <g id="mapGpsRouteLayer"></g>
+
+                    <!-- Animated Traffic Flow Cars Layer -->
+                    <g id="mapTrafficDotsLayer"></g>
+
+                    <!-- Landmarks Layer -->
+                    <g id="mapLandmarksLayer"></g>
+
+                    <!-- Clickable Waze Hazard Pins Layer -->
+                    <g id="mapHazardsLayer"></g>
+
+                    <!-- User's Real-Time Detected GPS Puck Layer -->
+                    <g id="mapUserGpsLayer"></g>
+
+                    <!-- Animated User GPS Navigation Vehicle -->
+                    <g id="mapPlayerVehicleLayer"></g>
+                </svg>
+
+                <!-- Proximity Hazard Radar Warning Badge on Map -->
+                <div class="proximity-radar-pill" id="proximityRadarPill" role="alert">
+                    <span>📡</span>
+                    <span id="proximityRadarText">Hazard 300m Ahead on your current road!</span>
+                </div>
+
+                <!-- Floating Map Locate Button -->
+                <button type="button" class="map-floating-locate" id="mapFloatingLocateBtn" title="Center & Detect My GPS Location">
+                    📍 My GPS
+                </button>
+
+                <!-- Turn-by-Turn Bottom ETA HUD -->
+                <div class="nav-hud-bottom" id="navHudBottom">
+                    <div class="eta-metrics">
+                        <span class="eta-time" id="navEtaText">12 min</span>
+                        <span class="eta-dist" id="navDistText">5.4 km • Via Marcos Hwy</span>
+                    </div>
+                    <div style="display:flex; gap:0.4rem;">
+                        <button type="button" class="btn btn-primary" id="simulateDriveBtn">▶ Simulate Drive</button>
+                        <button type="button" class="btn btn-danger" id="stopGpsBtn">⏹ Stop</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="map-legend">
+                <div class="legend-items">
+                    <span><i class="legend-dot" style="background:#38bdf8; box-shadow:0 0 6px #38bdf8;"></i>You (GPS)</span>
+                    <span><i class="legend-dot" style="background:#10b981;"></i>Clear</span>
+                    <span><i class="legend-dot" style="background:#f59e0b;"></i>Fog / Work</span>
+                    <span><i class="legend-dot" style="background:#f97316;"></i>Accident / Jam</span>
+                    <span><i class="legend-dot" style="background:#ef4444;"></i>Closed</span>
+                </div>
+                <span>Click map to move your GPS pin</span>
+            </div>
+        </section>
+
+        <!-- Right Column: Live Searchable & Filterable Incident Feed -->
+        <aside class="feed-panel">
+            <div class="status-box">
+                <span id="statusText">Waze Telemetry • Baguio & Benguet</span>
+                <span class="counter-critical" id="criticalCount">0 Critical</span>
+            </div>
+
+            <div class="controls-bar">
+                <input type="text" id="searchInput" class="search-input" list="baguioRoutes" placeholder="Search road, hazard, or landmark...">
+                <datalist id="baguioRoutes"></datalist>
+
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="critical">⛔ Closed</button>
+                    <button class="filter-btn" data-filter="accident">💥 Accidents</button>
+                    <button class="filter-btn" data-filter="danger">🚗 Jams</button>
+                    <button class="filter-btn" data-filter="warning">⚠️ Fog/Work</button>
+                    <button class="filter-btn" data-filter="success">✅ Clear</button>
+                </div>
+            </div>
+
+            <div class="cards-grid" id="trafficFeed"></div>
+        </aside>
+    </div>
+
+    <!-- Floating Waze Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Detail & Community Verification Modal -->
+    <div class="modal-overlay" id="detailModal" role="dialog" aria-modal="true">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Location Title</h3>
+                <button class="close-btn" id="closeModalBtn" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Status:</strong> <span id="modalStatus"></span></p>
+                <p><strong>Hazard / Cause:</strong> <span id="modalHazard"></span></p>
+                <p><strong>Average Speed:</strong> <span id="modalSpeed"></span></p>
+                <p><strong>Corridor Segment:</strong> <span id="modalSub"></span></p>
+                <p style="margin-top: 0.5rem;"><strong>Report Details:</strong></p>
+                <p id="modalDesc" style="color: var(--text-secondary);"></p>
+
+                <div class="detour-callout" id="modalDetourBox">
+                    <strong>🧭 Waze Auto-Detour Advice:</strong>
+                    <div id="modalDetour" style="margin-top: 0.2rem;"></div>
+                </div>
+
+                <div class="verify-bar">
+                    <span id="modalConfirmCount" style="font-size: 0.82rem; font-weight: 700; color: #38bdf8;">👍 12 Wazers confirmed</span>
+                    <div style="display: flex; gap: 0.45rem;">
+                        <button type="button" class="btn btn-secondary" id="confirmStillThereBtn">Still There 👍</button>
+                        <button type="button" class="btn btn-success" id="confirmClearedBtn">Cleared ✅</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-gps" id="modalRouteHereBtn">🧭 Navigate / Route Around</button>
+                <button type="button" class="btn btn-secondary" id="closeModalFooterBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Hazard Report Modal -->
+    <div class="modal-overlay" id="addModal" role="dialog" aria-modal="true">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Drop Waze Hazard Pin on Map</h3>
+                <button class="close-btn" id="closeAddModalBtn" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="incidentForm">
+                    <div class="form-group">
+                        <label for="inputCorridor">Select Baguio / Benguet Corridor</label>
+                        <select id="inputCorridor" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="inputSub">Specific Landmark / Km Post</label>
+                        <input type="text" id="inputSub" required placeholder="e.g. Near Camp 5 Bridge or Post Office Loop">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputCategory">Alert Severity (Auto-Updates GPS Routing)</label>
+                        <select id="inputCategory">
+                            <option value="critical">⛔ Not Passable (Blocks GPS Route & Auto-Detours)</option>
+                            <option value="accident">💥 Vehicle Accident / Collision</option>
+                            <option value="danger">🚗 Heavy Jam (Slow Traffic)</option>
+                            <option value="warning">⚠️ Dense Fog / Road Work</option>
+                            <option value="success">✅ Clear Route (Reopen Road)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="inputHazard">Natural Hazard or Incident Cause</label>
+                        <input type="text" id="inputHazard" required placeholder="e.g. Landslide, Fallen Pine Tree, Flash Flood, Multi-Car Crash">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputSpeed">Current Speed</label>
+                        <input type="text" id="inputSpeed" required placeholder="e.g. 0 km/h or 15 km/h">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputDetour">Suggested Alternate Detour</label>
+                        <input type="text" id="inputDetour" placeholder="e.g. Detour via Marcos Highway or Leonard Wood Road">
+                    </div>
+                    <div class="form-group">
+                        <label for="inputDesc">Details</label>
+                        <textarea id="inputDesc" rows="2" required placeholder="Describe lane blockage or weather conditions..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="cancelAddModalBtn">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Drop Pin & Broadcast</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'baguio_waze_inapp_gps_v3';
+
+        // =========================================================================
+        // 1. BAGUIO & BENGUET VECTOR ROAD GRAPH (NODES + REAL LAT/LNG + CORRIDORS)
+        // =========================================================================
+        const MAP_NODES = {
+            la_trinidad:   { id: 'la_trinidad',   name: 'La Trinidad (Km 5 / Strawberry Farm)', x: 380, y: 55,  lat: 16.4485, lng: 120.5905, isLandmark: true },
+            halsema_ridge: { id: 'halsema_ridge', name: 'Halsema Hwy (Atok–Tublay Ridge)',      x: 560, y: 45,  lat: 16.4560, lng: 120.6250, isLandmark: false },
+            magsaysay_n:   { id: 'magsaysay_n',   name: 'Magsaysay Ave / Public Market',        x: 385, y: 155, lat: 16.4185, lng: 120.5945, isLandmark: true },
+            bokawkan_jct:  { id: 'bokawkan_jct',  name: 'Bokawkan Rotunda',                     x: 285, y: 185, lat: 16.4170, lng: 120.5830, isLandmark: false },
+            naguilian_w:   { id: 'naguilian_w',   name: 'Naguilian Rd (Irisan / West Entry)',   x: 90,  y: 195, lat: 16.4190, lng: 120.5520, isLandmark: true },
+            burnham_park:  { id: 'burnham_park',  name: 'Burnham Park / City Center',           x: 350, y: 265, lat: 16.4122, lng: 120.5930, isLandmark: true },
+            session_rd:    { id: 'session_rd',    name: 'Session Road / SM City Baguio',        x: 435, y: 275, lat: 16.4115, lng: 120.5985, isLandmark: true },
+            leonard_wood:  { id: 'leonard_wood',  name: 'Leonard Wood / Botanical Garden',      x: 545, y: 215, lat: 16.4145, lng: 120.6125, isLandmark: true },
+            pacdal_circle: { id: 'pacdal_circle', name: 'Pacdal Circle / Wright Park',          x: 645, y: 265, lat: 16.4140, lng: 120.6230, isLandmark: true },
+            south_drive:   { id: 'south_drive',   name: 'South Drive / Country Club',           x: 590, y: 345, lat: 16.4045, lng: 120.6180, isLandmark: false },
+            camp_john_hay: { id: 'camp_john_hay', name: 'Camp John Hay Main Gate',              x: 505, y: 385, lat: 16.3980, lng: 120.6095, isLandmark: true },
+            bgh_rotunda:   { id: 'bgh_rotunda',   name: 'BGH Rotunda / Legarda Junction',       x: 335, y: 365, lat: 16.4015, lng: 120.5915, isLandmark: true },
+            marcos_hwy:    { id: 'marcos_hwy',    name: 'Marcos Highway (Badiwan Viaduct)',     x: 115, y: 455, lat: 16.3905, lng: 120.5580, isLandmark: true },
+            loakan_airport:{ id: 'loakan_airport',name: 'Loakan Airport / PEZA Zone',           x: 525, y: 495, lat: 16.3765, lng: 120.6140, isLandmark: true },
+            kennon_camp4:  { id: 'kennon_camp4',  name: 'Kennon Road (Camp 4–6 Canyon)',        x: 385, y: 475, lat: 16.3820, lng: 120.5960, isLandmark: false },
+            kennon_view:   { id: 'kennon_view',   name: 'Kennon Viewpoint / Lion’s Head',       x: 355, y: 575, lat: 16.3650, lng: 120.5935, isLandmark: true }
+        };
+
+        // Road segments connecting nodes (used for both SVG rendering & Dijkstra routing)
+        const ROAD_CORRIDORS = [
+            {
+                id: 'kennon',
+                name: 'Kennon Road',
+                from: 'bgh_rotunda',
+                to: 'kennon_view',
+                via: ['kennon_camp4'],
+                distanceKm: 6.8,
+                baseMinutes: 11,
+                pinPos: { x: 382, y: 485 },
+                pathD: 'M 335 365 Q 375 415 385 475 T 355 575',
+                labelPos: { x: 405, y: 465 }
+            },
+            {
+                id: 'marcos',
+                name: 'Marcos Highway (Aspiras–Palispis)',
+                from: 'bgh_rotunda',
+                to: 'marcos_hwy',
+                via: [],
+                distanceKm: 7.4,
+                baseMinutes: 10,
+                pinPos: { x: 215, y: 412 },
+                pathD: 'M 335 365 Q 230 390 115 455',
+                labelPos: { x: 170, y: 392 }
+            },
+            {
+                id: 'session',
+                name: 'Session Road',
+                from: 'burnham_park',
+                to: 'session_rd',
+                via: [],
+                distanceKm: 1.4,
+                baseMinutes: 4,
+                pinPos: { x: 395, y: 270 },
+                pathD: 'M 350 265 L 435 275',
+                labelPos: { x: 392, y: 252 }
+            },
+            {
+                id: 'halsema',
+                name: 'Halsema Highway (Baguio–Bontoc Rd)',
+                from: 'la_trinidad',
+                to: 'halsema_ridge',
+                via: [],
+                distanceKm: 8.2,
+                baseMinutes: 14,
+                pinPos: { x: 475, y: 48 },
+                pathD: 'M 380 55 Q 470 35 560 45',
+                labelPos: { x: 472, y: 30 }
+            },
+            {
+                id: 'magsaysay',
+                name: 'Magsaysay Avenue',
+                from: 'la_trinidad',
+                to: 'burnham_park',
+                via: ['magsaysay_n'],
+                distanceKm: 4.5,
+                baseMinutes: 9,
+                pinPos: { x: 382, y: 162 },
+                pathD: 'M 380 55 L 385 155 Q 375 215 350 265',
+                labelPos: { x: 402, y: 130 }
+            },
+            {
+                id: 'naguilian',
+                name: 'Naguilian Road (Quirino Hwy)',
+                from: 'naguilian_w',
+                to: 'bokawkan_jct',
+                via: [],
+                distanceKm: 5.1,
+                baseMinutes: 9,
+                pinPos: { x: 185, y: 190 },
+                pathD: 'M 90 195 Q 190 185 285 185',
+                labelPos: { x: 165, y: 174 }
+            },
+            {
+                id: 'bokawkan',
+                name: 'Bokawkan Road',
+                from: 'bokawkan_jct',
+                to: 'burnham_park',
+                via: [],
+                distanceKm: 2.3,
+                baseMinutes: 5,
+                pinPos: { x: 315, y: 225 },
+                pathD: 'M 285 185 Q 315 225 350 265',
+                labelPos: { x: 262, y: 235 }
+            },
+            {
+                id: 'leonard_wood',
+                name: 'Leonard Wood Road',
+                from: 'session_rd',
+                to: 'pacdal_circle',
+                via: ['leonard_wood'],
+                distanceKm: 3.6,
+                baseMinutes: 7,
+                pinPos: { x: 545, y: 215 },
+                pathD: 'M 435 275 Q 490 225 545 215 T 645 265',
+                labelPos: { x: 545, y: 198 }
+            },
+            {
+                id: 'south_drive',
+                name: 'South Drive',
+                from: 'pacdal_circle',
+                to: 'camp_john_hay',
+                via: ['south_drive'],
+                distanceKm: 3.1,
+                baseMinutes: 6,
+                pinPos: { x: 590, y: 345 },
+                pathD: 'M 645 265 Q 625 315 590 345 T 505 385',
+                labelPos: { x: 632, y: 332 }
+            },
+            {
+                id: 'loakan',
+                name: 'Loakan Road',
+                from: 'camp_john_hay',
+                to: 'loakan_airport',
+                via: [],
+                distanceKm: 4.2,
+                baseMinutes: 7,
+                pinPos: { x: 515, y: 440 },
+                pathD: 'M 505 385 Q 520 440 525 495',
+                labelPos: { x: 542, y: 445 }
+            },
+            {
+                id: 'bgh_connector',
+                name: 'Kisad / Legarda – BGH Corridor',
+                from: 'burnham_park',
+                to: 'bgh_rotunda',
+                via: [],
+                distanceKm: 1.9,
+                baseMinutes: 4,
+                pinPos: { x: 342, y: 315 },
+                pathD: 'M 350 265 L 335 365',
+                labelPos: { x: 268, y: 320 }
+            },
+            {
+                id: 'john_hay_link',
+                name: 'Military Cut-Off / Loakan Link',
+                from: 'bgh_rotunda',
+                to: 'camp_john_hay',
+                via: [],
+                distanceKm: 2.8,
+                baseMinutes: 5,
+                pinPos: { x: 422, y: 375 },
+                pathD: 'M 335 365 Q 420 385 505 385',
+                labelPos: { x: 422, y: 360 }
+            },
+            {
+                id: 'session_cJH',
+                name: 'Upper Session – South Drive Link',
+                from: 'session_rd',
+                to: 'camp_john_hay',
+                via: [],
+                distanceKm: 2.2,
+                baseMinutes: 5,
+                pinPos: { x: 470, y: 330 },
+                pathD: 'M 435 275 L 505 385',
+                labelPos: { x: 482, y: 320 }
+            },
+            {
+                id: 'asin_connector',
+                name: 'Naguilian–Marcos Ridge Bypass',
+                from: 'naguilian_w',
+                to: 'marcos_hwy',
+                via: [],
+                distanceKm: 6.5,
+                baseMinutes: 12,
+                pinPos: { x: 102, y: 325 },
+                pathD: 'M 90 195 Q 85 325 115 455',
+                labelPos: { x: 108, y: 325 }
+            },
+            {
+                id: 'kennon_loakan_spur',
+                name: 'Camp 6 – Loakan Mountain Spur',
+                from: 'loakan_airport',
+                to: 'kennon_view',
+                via: [],
+                distanceKm: 5.4,
+                baseMinutes: 10,
+                pinPos: { x: 440, y: 538 },
+                pathD: 'M 525 495 Q 450 545 355 575',
+                labelPos: { x: 455, y: 552 }
+            }
+        ];
+
+        // =========================================================================
+        // 2. INITIAL TRAFFIC & HAZARD REPORTS
+        // =========================================================================
+        const defaultTrafficData = [
+            {
+                id: 101,
+                corridorId: 'kennon',
+                location: 'Kennon Road',
+                sub: 'Camp 4 to Camp 6 Canyon • Speed: 0 km/h (NOT PASSABLE)',
+                category: 'critical',
+                badgeText: 'Not Passable',
+                hazard: 'Major Landslide & Rockslide',
+                speed: '0 km/h',
+                detour: 'GPS Auto-Detour via Marcos Highway or Loakan–Camp 6 Spur.',
+                desc: 'Both lanes completely blocked by boulders and mudslide triggered by heavy monsoon rain. In-app GPS routing automatically blocks this corridor.',
+                confirmations: 29
+            },
+            {
+                id: 102,
+                corridorId: 'session',
+                location: 'Session Road',
+                sub: 'Upper Session near SM Baguio • Speed: 8 km/h',
+                category: 'accident',
+                badgeText: 'Accident',
+                hazard: 'Multi-Vehicle Collision (3 Cars)',
+                speed: '8 km/h',
+                detour: 'Divert via Burnham Park – BGH Corridor or Leonard Wood Road.',
+                desc: 'Three-vehicle fender bender on wet cobblestones blocking the uphill inner lane. Traffic enforcers on site.',
+                confirmations: 17
+            },
+            {
+                id: 103,
+                corridorId: 'halsema',
+                location: 'Halsema Highway (Baguio–Bontoc Rd)',
+                sub: 'Atok–Tublay Ridge • Speed: 0 km/h (NOT PASSABLE)',
+                category: 'critical',
+                badgeText: 'Not Passable',
+                hazard: 'Fallen Pine Trees & Zero-Visibility Fog',
+                speed: '0 km/h',
+                detour: 'Hold at La Trinidad Km 5 staging area until clearing completes.',
+                desc: 'Uprooted Benguet pine trees and downed power lines across both lanes amid dense ridge fog (< 5m visibility).',
+                confirmations: 22
+            },
+            {
+                id: 104,
+                corridorId: 'magsaysay',
+                location: 'Magsaysay Avenue',
+                sub: 'Public Market to La Trinidad • Speed: 14 km/h',
+                category: 'danger',
+                badgeText: 'Heavy Jam',
+                hazard: 'Market Bottleneck & Rain Slowdown',
+                speed: '14 km/h',
+                detour: 'Use Bokawkan Rotunda connector for lighter volume.',
+                desc: 'Heavy jeepney and delivery truck congestion near the overpass.',
+                confirmations: 14
+            },
+            {
+                id: 105,
+                corridorId: 'naguilian',
+                location: 'Naguilian Road (Quirino Hwy)',
+                sub: 'Irisan to Bokawkan • Speed: 26 km/h',
+                category: 'warning',
+                badgeText: 'Road Work',
+                hazard: 'Slope Riprap & Dense Fog',
+                speed: '26 km/h',
+                detour: 'Single-lane alternating flow; keep fog lamps on.',
+                desc: 'Drainage and retaining wall reinforcement underway along westbound shoulder.',
+                confirmations: 9
+            },
+            {
+                id: 106,
+                corridorId: 'marcos',
+                location: 'Marcos Highway (Aspiras–Palispis)',
+                sub: 'Badiwan Viaduct to BGH • Speed: 55 km/h',
+                category: 'success',
+                badgeText: 'Clear Route',
+                hazard: 'Primary Open Highway',
+                speed: '55 km/h',
+                detour: 'Recommended main corridor bypassing Kennon Road closure.',
+                desc: 'All lanes open and moving smoothly. Wet asphalt caution advised.',
+                confirmations: 34
+            },
+            {
+                id: 107,
+                corridorId: 'leonard_wood',
+                location: 'Leonard Wood Road',
+                sub: 'Botanical Garden to Pacdal • Speed: 34 km/h',
+                category: 'warning',
+                badgeText: 'Fog / Work',
+                hazard: 'Patchy Ridge Fog',
+                speed: '34 km/h',
+                detour: 'Passable with caution.',
+                desc: 'Light mist near Teachers Camp and Botanical Garden.',
+                confirmations: 6
+            },
+            {
+                id: 108,
+                corridorId: 'loakan',
+                location: 'Loakan Road',
+                sub: 'Camp John Hay to Loakan Airport • Speed: 46 km/h',
+                category: 'success',
+                badgeText: 'Clear Route',
+                hazard: 'Normal Flow',
+                speed: '46 km/h',
+                detour: 'No detour required.',
+                desc: 'Smooth traffic along PEZA and airport stretch.',
+                confirmations: 11
+            },
+            {
+                id: 109,
+                corridorId: 'south_drive',
+                location: 'South Drive',
+                sub: 'Pacdal Circle to Country Club • Speed: 48 km/h',
+                category: 'success',
+                badgeText: 'Clear Route',
+                hazard: 'Normal Flow',
+                speed: '48 km/h',
+                detour: 'No detour required.',
+                desc: 'Clear mountain corridor with light traffic.',
+                confirmations: 8
+            }
+        ];
+
+        let trafficData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || JSON.parse(JSON.stringify(defaultTrafficData));
+        let currentFilter = 'all';
+        let soundEnabled = false;
+        let tickerIndex = 0;
+        let activeTickerItem = null;
+        let selectedModalItemId = null;
+
+        // Real-Time User GPS State (Browser Geolocation + Smart Baguio Snapping)
+        let userGpsState = {
+            detected: false,
+            isSimulated: false,
+            lat: 16.4115,
+            lng: 120.5985,
+            accuracyMeters: 18,
+            snappedNodeId: 'session_rd',
+            snappedCorridorId: 'session',
+            svgX: 435,
+            svgY: 275,
+            watchId: null,
+            lastAlertedIncidentId: null
+        };
+
+        // Active GPS Navigation State
+        let navState = {
+            active: false,
+            isDriving: false,
+            originId: 'burnham_park',
+            destId: 'kennon_view',
+            pathEdges: [],
+            pathNodes: [],
+            steps: [],
+            currentStepIndex: 0,
+            progress: 0,
+            totalKm: 0,
+            totalMin: 0,
+            reroutedReason: null,
+            animFrameId: null
+        };
+
+        // =========================================================================
+        // 3B. REAL-TIME BROWSER GEOLOCATION & BAGUIO MAP SNAPPING ENGINE
+        // =========================================================================
+        function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function findNearestNodeByLatLng(lat, lng) {
+            let bestNode = MAP_NODES.session_rd;
+            let minDist = Infinity;
+            Object.values(MAP_NODES).forEach(node => {
+                const d = haversineDistanceKm(lat, lng, node.lat, node.lng);
+                if (d < minDist) {
+                    minDist = d;
+                    bestNode = node;
+                }
+            });
+            return { node: bestNode, distanceKm: minDist };
+        }
+
+        function findNearestNodeBySvg(svgX, svgY) {
+            let bestNode = MAP_NODES.session_rd;
+            let minDist = Infinity;
+            Object.values(MAP_NODES).forEach(node => {
+                const d = Math.hypot(svgX - node.x, svgY - node.y);
+                if (d < minDist) {
+                    minDist = d;
+                    bestNode = node;
+                }
+            });
+            return bestNode;
+        }
+
+        function getCorridorForNode(nodeId) {
+            const match = ROAD_CORRIDORS.find(c =>
+                c.from === nodeId || c.to === nodeId || (c.via && c.via.includes(nodeId))
+            );
+            return match ? match.id : 'session';
+        }
+
+        function applyUserGpsLocation({ lat, lng, accuracy = 15, isSimulated = false, forcedNodeId = null }) {
+            let targetNode;
+            if (forcedNodeId && MAP_NODES[forcedNodeId]) {
+                targetNode = MAP_NODES[forcedNodeId];
+                lat = targetNode.lat;
+                lng = targetNode.lng;
+            } else {
+                const nearest = findNearestNodeByLatLng(lat, lng);
+                // If user is physically outside Baguio/Benguet (> 18 km away), snap to Session Road as simulated demo fallback
+                if (nearest.distanceKm > 18) {
+                    isSimulated = true;
+                    targetNode = MAP_NODES.session_rd;
+                    lat = targetNode.lat;
+                    lng = targetNode.lng;
+                } else {
+                    targetNode = nearest.node;
+                }
+            }
+
+            const corridorId = getCorridorForNode(targetNode.id);
+
+            userGpsState.detected = true;
+            userGpsState.isSimulated = isSimulated;
+            userGpsState.lat = lat;
+            userGpsState.lng = lng;
+            userGpsState.accuracyMeters = Math.round(accuracy);
+            userGpsState.snappedNodeId = targetNode.id;
+            userGpsState.snappedCorridorId = corridorId;
+            userGpsState.svgX = targetNode.x;
+            userGpsState.svgY = targetNode.y;
+
+            // Update GPS Telemetry Status Pill
+            const dotEl = document.getElementById('gpsLockDot');
+            const statusEl = document.getElementById('gpsCoordStatus');
+            dotEl.classList.toggle('simulated', isSimulated);
+
+            const modePrefix = isSimulated ? '📡 Simulated GPS' : '📡 Live GPS Locked';
+            statusEl.textContent = `${modePrefix}: Near ${targetNode.name.split('(')[0].trim()} (${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E)`;
+
+            // Sync "From: 📍 My Current GPS Location" option in routing dropdown
+            const originSelect = document.getElementById('originSelect');
+            let myLocOpt = originSelect.querySelector('option[value="__MY_GPS__"]');
+            if (!myLocOpt) {
+                myLocOpt = document.createElement('option');
+                myLocOpt.value = '__MY_GPS__';
+                originSelect.insertBefore(myLocOpt, originSelect.firstChild);
+            }
+            myLocOpt.textContent = `From: 📍 My Current Location (${targetNode.name.split('(')[0].trim()})`;
+            originSelect.value = '__MY_GPS__';
+
+            renderUserGpsPuck();
+            checkProximityHazards(targetNode, corridorId);
+
+            // Auto-update active route if navigation is running from My Current Location
+            if (navState.active && navState.usingUserGps) {
+                const destId = document.getElementById('destSelect').value;
+                startInAppNavigation(targetNode.id, destId, true);
+            }
+        }
+
+        function checkProximityHazards(node, corridorId) {
+            const radarPill = document.getElementById('proximityRadarPill');
+            const radarText = document.getElementById('proximityRadarText');
+
+            // Find any critical closure or accident on the user's current corridor or adjacent corridor
+            const nearbyHazards = trafficData.filter(item =>
+                (item.category === 'critical' || item.category === 'accident') &&
+                item.corridorId === corridorId
+            );
+
+            // Also check distance to any critical/accident hazard pin on the map
+            let closestHazard = nearbyHazards[0] || null;
+            let closestDistMeters = closestHazard ? 250 : Infinity;
+
+            if (!closestHazard) {
+                trafficData.forEach(item => {
+                    if (item.category !== 'critical' && item.category !== 'accident') return;
+                    const corr = ROAD_CORRIDORS.find(c => c.id === item.corridorId);
+                    if (!corr) return;
+                    const pxDist = Math.hypot(node.x - corr.pinPos.x, node.y - corr.pinPos.y);
+                    if (pxDist < 95) {
+                        const meters = Math.max(150, Math.round(pxDist * 6));
+                        if (meters < closestDistMeters) {
+                            closestDistMeters = meters;
+                            closestHazard = item;
+                        }
+                    }
+                });
+            }
+
+            if (closestHazard) {
+                radarPill.classList.add('active');
+                radarText.textContent = `⚠️ ${closestHazard.badgeText.toUpperCase()} ~${closestDistMeters}m Ahead on ${closestHazard.location}!`;
+
+                if (userGpsState.lastAlertedIncidentId !== closestHazard.id) {
+                    userGpsState.lastAlertedIncidentId = closestHazard.id;
+                    playWazeChime(closestHazard.category);
+                    showToast(
+                        `📡 Proximity Hazard (~${closestDistMeters}m)`,
+                        `${closestHazard.hazard} on ${closestHazard.location}. ${closestHazard.detour || 'Proceed with caution.'}`,
+                        closestHazard.category
+                    );
+                }
+            } else {
+                radarPill.classList.remove('active');
+                userGpsState.lastAlertedIncidentId = null;
+            }
+        }
+
+        function detectBrowserGpsLocation() {
+            const locateBtn = document.getElementById('locateMeBtn');
+            const statusEl = document.getElementById('gpsCoordStatus');
+            locateBtn.textContent = '⏳ Locating...';
+            locateBtn.disabled = true;
+            statusEl.textContent = '🛰️ Acquiring satellite / browser GPS coordinates...';
+
+            if (!('geolocation' in navigator)) {
+                locateBtn.textContent = '📍 Locate Me';
+                locateBtn.disabled = false;
+                applyUserGpsLocation({ lat: 16.4115, lng: 120.5985, isSimulated: true, forcedNodeId: 'session_rd' });
+                showToast('Simulated Baguio GPS Active', 'Browser Geolocation unavailable — snapped to Session Road for testing.', 'gps');
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    locateBtn.textContent = '📍 Locate Me';
+                    locateBtn.disabled = false;
+
+                    const { latitude, longitude, accuracy } = pos.coords;
+                    const nearest = findNearestNodeByLatLng(latitude, longitude);
+                    const outsideBaguio = nearest.distanceKm > 18;
+
+                    applyUserGpsLocation({
+                        lat: latitude,
+                        lng: longitude,
+                        accuracy: accuracy || 20,
+                        isSimulated: outsideBaguio
+                    });
+
+                    playWazeChime('gps');
+                    if (outsideBaguio) {
+                        showToast(
+                            '📡 Outside Baguio • Simulated GPS',
+                            'Your real GPS is outside Baguio/Benguet, so Waze snapped your live puck to Session Road. Tap any road on the map to move!',
+                            'gps'
+                        );
+                    } else {
+                        showToast(
+                            '📍 GPS Location Locked',
+                            `Snapped near ${nearest.node.name} (±${Math.round(accuracy || 20)}m).`,
+                            'gps'
+                        );
+                    }
+
+                    // Start continuous watchPosition updates
+                    if (userGpsState.watchId !== null) {
+                        navigator.geolocation.clearWatch(userGpsState.watchId);
+                    }
+                    userGpsState.watchId = navigator.geolocation.watchPosition(
+                        (watchPos) => {
+                            const wLat = watchPos.coords.latitude;
+                            const wLng = watchPos.coords.longitude;
+                            const wNearest = findNearestNodeByLatLng(wLat, wLng);
+                            if (wNearest.distanceKm <= 18) {
+                                applyUserGpsLocation({
+                                    lat: wLat,
+                                    lng: wLng,
+                                    accuracy: watchPos.coords.accuracy || 15,
+                                    isSimulated: false
+                                });
+                            }
+                        },
+                        () => {},
+                        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+                    );
+                },
+                (err) => {
+                    locateBtn.textContent = '📍 Locate Me';
+                    locateBtn.disabled = false;
+                    // Seamless desktop/iframe fallback
+                    applyUserGpsLocation({
+                        lat: 16.4115,
+                        lng: 120.5985,
+                        isSimulated: true,
+                        forcedNodeId: 'session_rd'
+                    });
+                    playWazeChime('gps');
+                    showToast(
+                        '📡 Simulated GPS Active',
+                        `Location permission unavailable (${err.message || 'blocked'}). Snapped to Session Road — click anywhere on the map or use "Test GPS" to move.`,
+                        'gps'
+                    );
+                },
+                { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+            );
+        }
+
+        function renderUserGpsPuck() {
+            const userLayer = document.getElementById('mapUserGpsLayer');
+            if (!userLayer) return;
+            if (!userGpsState.detected) {
+                userLayer.innerHTML = '';
+                return;
+            }
+
+            const { svgX, svgY, isSimulated } = userGpsState;
+            const ringColor = isSimulated ? '#fbbf24' : '#38bdf8';
+
+            userLayer.innerHTML = `
+                <g transform="translate(${svgX}, ${svgY})" style="pointer-events: none;">
+                    <circle r="22" fill="none" stroke="${ringColor}" stroke-width="2" opacity="0.65">
+                        <animate attributeName="r" values="10;28" dur="1.8s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.85;0" dur="1.8s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="9" fill="${ringColor}" stroke="#ffffff" stroke-width="2.5" />
+                    <rect x="-24" y="-26" width="48" height="15" rx="7" fill="#090e1a" stroke="${ringColor}" stroke-width="1.2" />
+                    <text x="0" y="-16" text-anchor="middle" fill="#ffffff" font-size="8.5" font-weight="800">YOU 📍</text>
+                </g>
+            `;
+        }
+
+        function playWazeChime(variant = 'critical') {
+            if (!soundEnabled) return;
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                if (variant === 'critical') {
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(330, audioCtx.currentTime + 0.18);
+                } else if (variant === 'accident') {
+                    osc.frequency.setValueAtTime(520, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(390, audioCtx.currentTime + 0.15);
+                } else {
+                    osc.frequency.setValueAtTime(659.25, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15);
+                }
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.38);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.38);
+            } catch(e) {}
+        }
+
+        function showToast(title, message, variant = 'critical') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `waze-toast toast-${variant}`;
+
+            const icon = document.createElement('div');
+            icon.className = 'toast-icon';
+            icon.textContent = variant === 'critical' ? '⛔' : variant === 'accident' ? '💥' : variant === 'gps' ? '🧭' : '✅';
+
+            const body = document.createElement('div');
+            body.className = 'toast-body';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'toast-title';
+            titleEl.textContent = title;
+
+            const msgEl = document.createElement('div');
+            msgEl.className = 'toast-msg';
+            msgEl.textContent = message;
+
+            body.appendChild(titleEl);
+            body.appendChild(msgEl);
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'toast-close';
+            closeBtn.setAttribute('aria-label', 'Dismiss alert');
+            closeBtn.textContent = '×';
+            closeBtn.addEventListener('click', () => toast.remove());
+
+            toast.appendChild(icon);
+            toast.appendChild(body);
+            toast.appendChild(closeBtn);
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                if (toast.parentNode) toast.remove();
+            }, 6000);
+        }
+
+        function saveTrafficData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(trafficData));
+        }
+
+        function getCorridorStatus(corridorId) {
+            const items = trafficData.filter(i => i.corridorId === corridorId);
+            if (items.length === 0) return { category: 'success', incident: null };
+            const priority = { critical: 0, accident: 1, danger: 2, warning: 3, success: 4 };
+            items.sort((a, b) => priority[a.category] - priority[b.category]);
+            return { category: items[0].category, incident: items[0] };
+        }
+
+        // =========================================================================
+        // 4. IN-APP DIJKSTRA GPS ROUTING ENGINE (AUTO-AVOIDS NOT PASSABLE ROADS)
+        // =========================================================================
+        function findShortestSafePath(startId, endId, ignoreClosures = false) {
+            const distances = {};
+            const previous = {};
+            const unvisited = new Set(Object.keys(MAP_NODES));
+
+            Object.keys(MAP_NODES).forEach(nodeId => {
+                distances[nodeId] = Infinity;
+                previous[nodeId] = null;
+            });
+            distances[startId] = 0;
+
+            while (unvisited.size > 0) {
+                let current = null;
+                unvisited.forEach(nodeId => {
+                    if (current === null || distances[nodeId] < distances[current]) {
+                        current = nodeId;
+                    }
+                });
+
+                if (current === null || distances[current] === Infinity || current === endId) break;
+                unvisited.delete(current);
+
+                ROAD_CORRIDORS.forEach(edge => {
+                    let neighbor = null;
+                    let reversed = false;
+                    if (edge.from === current) { neighbor = edge.to; reversed = false; }
+                    else if (edge.to === current) { neighbor = edge.from; reversed = true; }
+
+                    if (!neighbor || !unvisited.has(neighbor)) return;
+
+                    const { category, incident } = getCorridorStatus(edge.id);
+
+                    // Block closed/not-passable corridors unless calculating hypothetical blocked route
+                    if (!ignoreClosures && category === 'critical') {
+                        return;
+                    }
+
+                    // Weight penalties for accidents, jams, or fog
+                    let penaltyMultiplier = 1.0;
+                    if (category === 'accident') penaltyMultiplier = 2.4;
+                    else if (category === 'danger') penaltyMultiplier = 1.85;
+                    else if (category === 'warning') penaltyMultiplier = 1.3;
+
+                    const cost = edge.baseMinutes * penaltyMultiplier;
+                    const candidateDist = distances[current] + cost;
+
+                    if (candidateDist < distances[neighbor]) {
+                        distances[neighbor] = candidateDist;
+                        previous[neighbor] = { node: current, edge, reversed, incident };
+                    }
+                });
+            }
+
+            if (distances[endId] === Infinity) return null;
+
+            const pathEdges = [];
+            const pathNodes = [endId];
+            let curr = endId;
+
+            while (previous[curr]) {
+                const step = previous[curr];
+                pathEdges.unshift({
+                    edge: step.edge,
+                    reversed: step.reversed,
+                    fromNode: step.node,
+                    toNode: curr,
+                    incident: step.incident
+                });
+                pathNodes.unshift(step.node);
+                curr = step.node;
+            }
+
+            return {
+                pathEdges,
+                pathNodes,
+                totalKm: parseFloat(distances[endId]).toFixed(1),
+                totalMinutes: Math.round(distances[endId])
+            };
+        }
+
+        function startInAppNavigation(originId, destId, usingUserGps = false) {
+            if (originId === '__MY_GPS__') {
+                if (!userGpsState.detected) {
+                    applyUserGpsLocation({ lat: 16.4115, lng: 120.5985, isSimulated: true, forcedNodeId: 'session_rd' });
+                }
+                originId = userGpsState.snappedNodeId;
+                usingUserGps = true;
+            }
+
+            if (originId === destId) {
+                showToast('Destination Reached', 'You are already at your selected destination!', 'gps');
+                return;
+            }
+
+            const safeRoute = findShortestSafePath(originId, destId, false);
+            const rawRoute = findShortestSafePath(originId, destId, true);
+
+            if (!safeRoute) {
+                playWazeChime('critical');
+                showToast('⛔ No Passable Route', 'All connecting corridors to this destination are currently blocked by natural hazards!', 'critical');
+                return;
+            }
+
+            // Detect if Waze had to reroute around a closed road or accident
+            let reroutedReason = null;
+            if (rawRoute) {
+                const blockedOnRaw = rawRoute.pathEdges.find(pe => {
+                    const st = getCorridorStatus(pe.edge.id);
+                    return st.category === 'critical' || st.category === 'accident';
+                });
+                const tookDifferentPath = rawRoute.pathEdges.map(e => e.edge.id).join(',') !== safeRoute.pathEdges.map(e => e.edge.id).join(',');
+
+                if (blockedOnRaw && tookDifferentPath) {
+                    const st = getCorridorStatus(blockedOnRaw.edge.id);
+                    reroutedReason = `Rerouted! ${st.incident.hazard} on ${blockedOnRaw.edge.name}`;
+                }
+            }
+
+            navState.active = true;
+            navState.isDriving = true;
+            navState.usingUserGps = usingUserGps;
+            navState.originId = originId;
+            navState.destId = destId;
+            navState.pathEdges = safeRoute.pathEdges;
+            navState.pathNodes = safeRoute.pathNodes;
+            navState.totalKm = safeRoute.totalKm;
+            navState.totalMin = safeRoute.totalMinutes;
+            navState.reroutedReason = reroutedReason;
+            navState.currentStepIndex = 0;
+            navState.progress = 0;
+
+            const simBtn = document.getElementById('simulateDriveBtn');
+            if (simBtn) simBtn.textContent = '⏸ Pause Drive';
+
+            // Build turn-by-turn steps
+            navState.steps = safeRoute.pathEdges.map((pe, idx) => {
+                const targetNode = MAP_NODES[pe.toNode];
+                const isLast = idx === safeRoute.pathEdges.length - 1;
+                return {
+                    arrow: isLast ? '🏁' : (idx % 2 === 0 ? '⬆️' : '↗️'),
+                    distanceLabel: `${pe.edge.distanceKm.toFixed(1)} km • ${pe.edge.name}`,
+                    instruction: isLast
+                        ? `Continue on ${pe.edge.name} to arrive at ${targetNode.name}`
+                        : `Take ${pe.edge.name} toward ${targetNode.name}`
+                };
+            });
+
+            document.getElementById('navHudTop').classList.add('active');
+            document.getElementById('navHudBottom').classList.add('active');
+
+            const viaRoad = safeRoute.pathEdges[0]?.edge.name || 'City Corridor';
+            document.getElementById('navEtaText').textContent = `${safeRoute.totalMinutes} min`;
+            document.getElementById('navDistText').textContent = `${safeRoute.totalKm} km • Via ${viaRoad}`;
+
+            const rerouteTag = document.getElementById('navRerouteTag');
+            if (reroutedReason) {
+                rerouteTag.style.display = 'inline-block';
+                rerouteTag.textContent = `⚠️ ${reroutedReason}`;
+                playWazeChime('critical');
+                showToast('🧭 Waze Auto-Detour Active', `${reroutedReason} — taking ${viaRoad} instead.`, 'gps');
+            } else {
+                rerouteTag.style.display = 'none';
+                playWazeChime('gps');
+                showToast('🧭 GPS Navigation Started', `Routing to ${MAP_NODES[destId].name} (${safeRoute.totalMinutes} min).`, 'gps');
+            }
+
+            renderMap();
+            startVehicleAnimationLoop();
+        }
+
+        function stopInAppNavigation() {
+            navState.active = false;
+            navState.isDriving = false;
+            if (navState.animFrameId) {
+                cancelAnimationFrame(navState.animFrameId);
+                navState.animFrameId = null;
+            }
+            document.getElementById('navHudTop').classList.remove('active');
+            document.getElementById('navHudBottom').classList.remove('active');
+            document.getElementById('mapGpsRouteLayer').innerHTML = '';
+            document.getElementById('mapPlayerVehicleLayer').innerHTML = '';
+        }
+
+        // Smooth step-by-step GPS vehicle movement along the active SVG path
+        function startVehicleAnimationLoop() {
+            if (navState.animFrameId) cancelAnimationFrame(navState.animFrameId);
+
+            function tick() {
+                if (!navState.active) return;
+
+                if (!navState.isDriving) {
+                    navState.animFrameId = requestAnimationFrame(tick);
+                    return;
+                }
+
+                const pathEl = document.getElementById('activeGpsSvgPath');
+                const vehicleGroup = document.getElementById('gpsVehicleMarker');
+
+                if (pathEl && vehicleGroup) {
+                    const totalLength = pathEl.getTotalLength();
+                    navState.progress += 0.0022; // Smooth driving speed
+
+                    if (navState.progress >= 1) {
+                        navState.progress = 1;
+                        const endPt = pathEl.getPointAtLength(totalLength);
+                        vehicleGroup.setAttribute('transform', `translate(${endPt.x}, ${endPt.y})`);
+
+                        document.getElementById('navTurnIcon').textContent = '🏁';
+                        document.getElementById('navStepDist').textContent = '0 m • Arrived';
+                        document.getElementById('navStepText').textContent = `You have arrived at ${MAP_NODES[navState.destId].name}!`;
+                        playWazeChime('gps');
+                        showToast('🏁 Arrived at Destination', `Welcome to ${MAP_NODES[navState.destId].name}.`, 'success');
+                        return;
+                    }
+
+                    const currentLen = totalLength * navState.progress;
+                    const pt = pathEl.getPointAtLength(currentLen);
+                    const aheadPt = pathEl.getPointAtLength(Math.min(totalLength, currentLen + 4));
+                    const angleDeg = Math.atan2(aheadPt.y - pt.y, aheadPt.x - pt.x) * (180 / Math.PI);
+
+                    vehicleGroup.setAttribute('transform', `translate(${pt.x}, ${pt.y}) rotate(${angleDeg})`);
+
+                    // Update active Turn-by-Turn HUD instruction based on progress
+                    const stepIdx = Math.min(
+                        navState.steps.length - 1,
+                        Math.floor(navState.progress * navState.steps.length)
+                    );
+                    const step = navState.steps[stepIdx];
+                    if (step) {
+                        document.getElementById('navTurnIcon').textContent = step.arrow;
+                        document.getElementById('navStepDist').textContent = step.distanceLabel;
+                        document.getElementById('navStepText').textContent = step.instruction;
+                    }
+
+                    const remMin = Math.max(1, Math.ceil(navState.totalMin * (1 - navState.progress)));
+                    const remKm = (parseFloat(navState.totalKm) * (1 - navState.progress)).toFixed(1);
+                    document.getElementById('navEtaText').textContent = `${remMin} min`;
+                    document.getElementById('navDistText').textContent = `${remKm} km remaining`;
+                }
+
+                navState.animFrameId = requestAnimationFrame(tick);
+            }
+
+            navState.animFrameId = requestAnimationFrame(tick);
+        }
+
+        // =========================================================================
+        // 5. VECTOR MAP RENDERING (ROADS, FLOW DOTS, LANDMARKS & HAZARD PINS)
+        // =========================================================================
+        function initStaticMapBackground() {
+            const bgLayer = document.getElementById('mapBackgroundLayer');
+            let svgContent = '';
+
+            // Subtle coordinate grid
+            for (let x = 0; x <= 800; x += 80) {
+                svgContent += `<line x1="${x}" y1="0" x2="${x}" y2="620" class="map-grid-line" />`;
+            }
+            for (let y = 0; y <= 620; y += 80) {
+                svgContent += `<line x1="0" y1="${y}" x2="800" y2="${y}" class="map-grid-line" />`;
+            }
+
+            // Baguio Elevation Topographic Rings
+            svgContent += `
+                <ellipse cx="420" cy="295" rx="290" ry="225" class="topo-ring" />
+                <ellipse cx="420" cy="295" rx="205" ry="155" class="topo-ring" />
+                <ellipse cx="420" cy="295" rx="120" ry="90" class="topo-ring" />
+                <text x="24" y="34" fill="#475569" font-size="11" font-weight="800" letter-spacing="1.5">CORDILLERA ELEVATION: 1,540M ASL</text>
+            `;
+            bgLayer.innerHTML = svgContent;
+        }
+
+        function renderMap() {
+            const roadsLayer = document.getElementById('mapRoadsLayer');
+            const trafficDotsLayer = document.getElementById('mapTrafficDotsLayer');
+            const landmarksLayer = document.getElementById('mapLandmarksLayer');
+            const hazardsLayer = document.getElementById('mapHazardsLayer');
+            const gpsRouteLayer = document.getElementById('mapGpsRouteLayer');
+            const playerLayer = document.getElementById('mapPlayerVehicleLayer');
+
+            roadsLayer.innerHTML = '';
+            trafficDotsLayer.innerHTML = '';
+            landmarksLayer.innerHTML = '';
+            hazardsLayer.innerHTML = '';
+
+            // 1. Draw Road Network & Animated Traffic Dots
+            ROAD_CORRIDORS.forEach(corridor => {
+                const { category, incident } = getCorridorStatus(corridor.id);
+
+                // Dark outer casing
+                const casing = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                casing.setAttribute('d', corridor.pathD);
+                casing.setAttribute('class', 'road-casing');
+                roadsLayer.appendChild(casing);
+
+                // Colored status road
+                const roadPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                roadPath.setAttribute('d', corridor.pathD);
+                roadPath.setAttribute('id', `road-path-${corridor.id}`);
+                roadPath.setAttribute('class', `road-base road-status-${category}`);
+                roadPath.addEventListener('click', () => {
+                    if (incident) {
+                        openModal(incident);
+                    } else {
+                        startInAppNavigation(navState.originId, corridor.to);
+                    }
+                });
+                roadsLayer.appendChild(roadPath);
+
+                // Road Name Label
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', corridor.labelPos.x);
+                label.setAttribute('y', corridor.labelPos.y);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('class', 'road-label');
+                label.textContent = corridor.name.split('(')[0].trim();
+                roadsLayer.appendChild(label);
+
+                // Animated Traffic Dots or Flashing Red X Barrier
+                if (category === 'critical') {
+                    const bx = corridor.pinPos.x;
+                    const by = corridor.pinPos.y;
+                    const barrierGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    barrierGroup.innerHTML = `
+                        <circle cx="${bx}" cy="${by}" r="14" fill="rgba(239,68,68,0.28)" stroke="#ef4444" stroke-width="2">
+                            <animate attributeName="r" values="12;18;12" dur="1.2s" repeatCount="indefinite" />
+                        </circle>
+                        <text x="${bx}" y="${by + 4}" text-anchor="middle" fill="#fecaca" font-size="13" font-weight="900">✖</text>
+                    `;
+                    trafficDotsLayer.appendChild(barrierGroup);
+                } else {
+                    const dotColor = category === 'success' ? '#6ee7b7' : category === 'warning' ? '#fde68a' : '#fda4af';
+                    const dur = category === 'success' ? '3.2s' : category === 'warning' ? '5.5s' : '8.5s';
+
+                    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    dot.setAttribute('r', '3.5');
+                    dot.setAttribute('fill', dotColor);
+
+                    const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+                    anim.setAttribute('dur', dur);
+                    anim.setAttribute('repeatCount', 'indefinite');
+                    anim.setAttribute('path', corridor.pathD);
+
+                    dot.appendChild(anim);
+                    trafficDotsLayer.appendChild(dot);
+                }
+            });
+
+            // 2. Draw Active Blue/Cyan GPS Path if Navigation is Active
+            if (navState.active && navState.pathNodes.length >= 2) {
+                let combinedD = '';
+                navState.pathNodes.forEach((nodeId, idx) => {
+                    const pt = MAP_NODES[nodeId];
+                    combinedD += (idx === 0 ? `M ${pt.x} ${pt.y}` : ` L ${pt.x} ${pt.y}`);
+                });
+
+                gpsRouteLayer.innerHTML = `
+                    <path d="${combinedD}" class="gps-route-glow" />
+                    <path id="activeGpsSvgPath" d="${combinedD}" class="gps-route-line" filter="url(#glowCyan)" />
+                `;
+
+                const startPt = MAP_NODES[navState.originId];
+                playerLayer.innerHTML = `
+                    <g id="gpsVehicleMarker" transform="translate(${startPt.x}, ${startPt.y})">
+                        <circle r="13" fill="rgba(0, 229, 255, 0.25)" />
+                        <polygon points="10,0 -7,-6 -4,0 -7,6" fill="#00e5ff" stroke="#090e1a" stroke-width="1.5" />
+                    </g>
+                `;
+            } else {
+                gpsRouteLayer.innerHTML = '';
+                playerLayer.innerHTML = '';
+            }
+
+            // 3. Draw Landmarks
+            Object.values(MAP_NODES).forEach(node => {
+                if (!node.isLandmark) return;
+
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', node.x);
+                circle.setAttribute('cy', node.y);
+                circle.setAttribute('r', '5');
+                circle.setAttribute('class', 'landmark-dot');
+                circle.addEventListener('click', () => {
+                    document.getElementById('destSelect').value = node.id;
+                    startInAppNavigation(document.getElementById('originSelect').value, node.id);
+                });
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', node.x);
+                text.setAttribute('y', node.y - 9);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('class', 'landmark-label');
+                text.textContent = node.name.split('(')[0].trim();
+
+                g.appendChild(circle);
+                g.appendChild(text);
+                landmarksLayer.appendChild(g);
+            });
+
+            // 4. Draw Clickable Waze Hazard Pins for Non-Clear Corridors
+            ROAD_CORRIDORS.forEach(corridor => {
+                const { category, incident } = getCorridorStatus(corridor.id);
+                if (!incident || category === 'success') return;
+
+                const px = corridor.pinPos.x;
+                const py = corridor.pinPos.y - 18;
+
+                const pinColor = category === 'critical' ? '#ef4444' : category === 'accident' ? '#f97316' : category === 'danger' ? '#f43f5e' : '#f59e0b';
+                const pinEmoji = category === 'critical' ? '⛔' : category === 'accident' ? '💥' : category === 'danger' ? '🚗' : '🌫️';
+
+                const pinGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                pinGroup.setAttribute('class', 'hazard-pin');
+                pinGroup.innerHTML = `
+                    <path d="M ${px} ${py + 16} L ${px - 6} ${py + 6} A 12 12 0 1 1 ${px + 6} ${py + 6} Z" fill="${pinColor}" stroke="#090e1a" stroke-width="1.5" />
+                    <text x="${px}" y="${py + 1}" text-anchor="middle" font-size="11">${pinEmoji}</text>
+                `;
+                pinGroup.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openModal(incident);
+                });
+                hazardsLayer.appendChild(pinGroup);
+            });
+
+            // 5. Render User's Detected Live GPS Puck on Top
+            renderUserGpsPuck();
+        }
+
+        function highlightRoadOnMap(corridorId, active) {
+            const pathEl = document.getElementById(`road-path-${corridorId}`);
+            if (pathEl) {
+                pathEl.classList.toggle('road-highlighted', active);
+            }
+        }
+
+        // =========================================================================
+        // 6. SYNCHRONIZED LIVE FEED, TICKER, MODALS & REPORTING
+        // =========================================================================
+        function populateSelectors() {
+            const originSelect = document.getElementById('originSelect');
+            const destSelect = document.getElementById('destSelect');
+            const corridorSelect = document.getElementById('inputCorridor');
+
+            originSelect.innerHTML = '';
+            destSelect.innerHTML = '';
+            corridorSelect.innerHTML = '';
+
+            Object.values(MAP_NODES).forEach(node => {
+                const opt1 = document.createElement('option');
+                opt1.value = node.id;
+                opt1.textContent = `From: ${node.name}`;
+                originSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = node.id;
+                opt2.textContent = `To: ${node.name}`;
+                destSelect.appendChild(opt2);
+            });
+
+            originSelect.value = 'burnham_park';
+            destSelect.value = 'kennon_view';
+
+            ROAD_CORRIDORS.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                corridorSelect.appendChild(opt);
+            });
+        }
+
+        function updateDatalist() {
+            const datalist = document.getElementById('baguioRoutes');
+            datalist.innerHTML = '';
+            const uniqueLocations = [...new Set(trafficData.map(item => item.location))];
+            uniqueLocations.forEach(loc => {
+                const option = document.createElement('option');
+                option.value = loc;
+                datalist.appendChild(option);
+            });
+        }
+
+        function updateWazeTicker() {
+            const banner = document.getElementById('wazeAlertBanner');
+            const highPriority = trafficData.filter(i => i.category === 'critical' || i.category === 'accident');
+
+            document.getElementById('criticalCount').textContent = `${highPriority.length} Critical / Accidents`;
+
+            if (highPriority.length === 0) {
+                banner.classList.add('hidden');
+                activeTickerItem = null;
+                return;
+            }
+
+            banner.classList.remove('hidden');
+            activeTickerItem = highPriority[tickerIndex % highPriority.length];
+
+            const isCritical = activeTickerItem.category === 'critical';
+            document.getElementById('tickerIcon').textContent = isCritical ? '⛔' : '💥';
+            document.getElementById('tickerLabel').textContent = isCritical
+                ? '🚨 WAZE ROAD CLOSURE • TAP FOR DETOUR & IN-APP GPS'
+                : '🚨 WAZE ACCIDENT ALERT • LANE OBSTRUCTION';
+            document.getElementById('tickerMainText').textContent = `${activeTickerItem.location}: ${activeTickerItem.hazard}`;
+            document.getElementById('tickerSubText').textContent = activeTickerItem.detour
+                ? `Detour: ${activeTickerItem.detour}`
+                : activeTickerItem.sub;
+
+            const badge = document.getElementById('tickerBadge');
+            badge.textContent = activeTickerItem.badgeText;
+            badge.className = `badge badge-${activeTickerItem.category}`;
+        }
+
+        document.getElementById('wazeAlertBanner').addEventListener('click', () => {
+            if (activeTickerItem) openModal(activeTickerItem);
+        });
+
+        setInterval(() => {
+            tickerIndex++;
+            updateWazeTicker();
+        }, 5000);
+
+        function renderCards() {
+            const container = document.getElementById('trafficFeed');
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            container.innerHTML = '';
+
+            const priorityOrder = { critical: 0, accident: 1, danger: 2, warning: 3, success: 4 };
+            const sortedData = [...trafficData].sort((a, b) => priorityOrder[a.category] - priorityOrder[b.category]);
+
+            const filteredData = sortedData.filter(item => {
+                const matchesFilter = (currentFilter === 'all') || (item.category === currentFilter);
+                const matchesSearch =
+                    item.location.toLowerCase().includes(searchVal) ||
+                    item.sub.toLowerCase().includes(searchVal) ||
+                    (item.hazard && item.hazard.toLowerCase().includes(searchVal));
+                return matchesFilter && matchesSearch;
+            });
+
+            if (filteredData.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-state';
+                emptyDiv.textContent = 'No routes, accidents, or natural hazard alerts match your search.';
+                container.appendChild(emptyDiv);
+            } else {
+                filteredData.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    if (item.category === 'critical') card.classList.add('card-critical');
+                    if (item.category === 'accident') card.classList.add('card-accident');
+
+                    card.addEventListener('mouseenter', () => highlightRoadOnMap(item.corridorId, true));
+                    card.addEventListener('mouseleave', () => highlightRoadOnMap(item.corridorId, false));
+                    card.addEventListener('click', () => openModal(item));
+
+                    const cardTop = document.createElement('div');
+                    cardTop.className = 'card-top';
+
+                    const titleWrap = document.createElement('div');
+                    const titleEl = document.createElement('h3');
+                    titleEl.textContent = item.location;
+                    titleWrap.appendChild(titleEl);
+
+                    if (item.hazard) {
+                        const hazardTag = document.createElement('span');
+                        hazardTag.className = 'hazard-tag';
+                        hazardTag.textContent = item.hazard;
+                        titleWrap.appendChild(hazardTag);
+                    }
+
+                    const badgeEl = document.createElement('span');
+                    badgeEl.className = `badge badge-${item.category}`;
+                    badgeEl.textContent = item.badgeText;
+
+                    cardTop.appendChild(titleWrap);
+                    cardTop.appendChild(badgeEl);
+
+                    const subEl = document.createElement('p');
+                    subEl.className = 'card-sub';
+                    subEl.textContent = item.sub;
+
+                    const actionsRow = document.createElement('div');
+                    actionsRow.className = 'card-actions-row';
+
+                    const confirmSpan = document.createElement('span');
+                    confirmSpan.className = 'confirm-pill';
+                    confirmSpan.textContent = `👍 ${item.confirmations || 1} Wazers verified`;
+
+                    const navBtn = document.createElement('button');
+                    navBtn.type = 'button';
+                    navBtn.className = 'mini-nav-btn';
+                    navBtn.textContent = item.category === 'critical' ? '🧭 Route Around' : '🧭 Navigate';
+                    navBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        triggerRoutingForCorridor(item.corridorId);
+                    });
+
+                    actionsRow.appendChild(confirmSpan);
+                    actionsRow.appendChild(navBtn);
+
+                    const laneTrack = document.createElement('div');
+                    laneTrack.className = 'lane-track';
+
+                    if (item.category === 'critical') {
+                        const barrier = document.createElement('div');
+                        barrier.className = 'roadblock-track';
+                        barrier.textContent = '🚧 ⛔ ROAD CLOSED / NOT PASSABLE ⛔ 🚧';
+                        laneTrack.appendChild(barrier);
+                    } else {
+                        const carEl = document.createElement('div');
+                        carEl.className = `car car-${item.category}`;
+                        laneTrack.appendChild(carEl);
+                    }
+
+                    card.appendChild(cardTop);
+                    card.appendChild(subEl);
+                    card.appendChild(actionsRow);
+                    card.appendChild(laneTrack);
+                    container.appendChild(card);
+                });
+            }
+
+            updateDatalist();
+            updateWazeTicker();
+            renderMap();
+        }
+
+        function triggerRoutingForCorridor(corridorId) {
+            const corridor = ROAD_CORRIDORS.find(c => c.id === corridorId);
+            if (!corridor) return;
+            const originVal = document.getElementById('originSelect').value;
+            const resolvedOrigin = originVal === '__MY_GPS__' ? userGpsState.snappedNodeId : originVal;
+            const targetNode = corridor.to === resolvedOrigin ? corridor.from : corridor.to;
+            document.getElementById('destSelect').value = targetNode;
+            startInAppNavigation(originVal, targetNode, originVal === '__MY_GPS__');
+        }
+
+        function openModal(item) {
+            selectedModalItemId = item.id;
+            document.getElementById('modalTitle').textContent = item.location;
+            document.getElementById('modalStatus').textContent = item.badgeText;
+            document.getElementById('modalHazard').textContent = item.hazard || 'Standard Traffic Flow';
+            document.getElementById('modalSpeed').textContent = item.speed;
+            document.getElementById('modalSub').textContent = item.sub;
+            document.getElementById('modalDesc').textContent = item.desc;
+            document.getElementById('modalConfirmCount').textContent = `👍 ${item.confirmations || 1} Wazers confirmed`;
+
+            const detourBox = document.getElementById('modalDetourBox');
+            if (item.detour) {
+                detourBox.style.display = 'block';
+                document.getElementById('modalDetour').textContent = item.detour;
+            } else {
+                detourBox.style.display = 'none';
+            }
+
+            document.getElementById('detailModal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Community Verification Buttons inside Modal
+        document.getElementById('confirmStillThereBtn').addEventListener('click', () => {
+            const idx = trafficData.findIndex(i => i.id === selectedModalItemId);
+            if (idx !== -1) {
+                trafficData[idx].confirmations = (trafficData[idx].confirmations || 1) + 1;
+                document.getElementById('modalConfirmCount').textContent = `👍 ${trafficData[idx].confirmations} Wazers confirmed`;
+                saveTrafficData();
+                renderCards();
+                showToast('Thanks, Wazer!', `Confirmed hazard on ${trafficData[idx].location} is still active.`, 'gps');
+            }
+        });
+
+        document.getElementById('confirmClearedBtn').addEventListener('click', () => {
+            const idx = trafficData.findIndex(i => i.id === selectedModalItemId);
+            if (idx !== -1) {
+                const clearedRoad = trafficData[idx].location;
+                trafficData[idx] = {
+                    ...trafficData[idx],
+                    category: 'success',
+                    badgeText: 'Clear Route',
+                    hazard: 'Cleared by Community',
+                    speed: '45 km/h',
+                    sub: `${trafficData[idx].sub.split('•')[0].trim()} • Speed: 45 km/h (REOPENED)`,
+                    desc: 'Road cleared and verified passable by Waze community drivers.',
+                    confirmations: 1
+                };
+                saveTrafficData();
+                renderCards();
+                closeModal('detailModal');
+                playWazeChime('gps');
+                showToast('✅ Road Reopened!', `${clearedRoad} marked passable. GPS routing updated.`, 'success');
+
+                // Recalculate active navigation if running
+                if (navState.active) {
+                    startInAppNavigation(navState.originId, navState.destId);
+                }
+            }
+        });
+
+        document.getElementById('modalRouteHereBtn').addEventListener('click', () => {
+            const item = trafficData.find(i => i.id === selectedModalItemId);
+            closeModal('detailModal');
+            if (item) triggerRoutingForCorridor(item.corridorId);
+        });
+
+        // GPS Planner Controls
+        document.getElementById('locateMeBtn').addEventListener('click', detectBrowserGpsLocation);
+        document.getElementById('mapFloatingLocateBtn').addEventListener('click', detectBrowserGpsLocation);
+
+        document.getElementById('simPresetSelect').addEventListener('change', (e) => {
+            const nodeId = e.target.value;
+            if (!nodeId || !MAP_NODES[nodeId]) return;
+            applyUserGpsLocation({
+                lat: MAP_NODES[nodeId].lat,
+                lng: MAP_NODES[nodeId].lng,
+                isSimulated: true,
+                forcedNodeId: nodeId
+            });
+            playWazeChime('gps');
+            showToast('📍 Simulated GPS Moved', `Your GPS puck is now at ${MAP_NODES[nodeId].name}.`, 'gps');
+        });
+
+        // Allow clicking anywhere on the SVG map background to place/move user's GPS pin
+        document.getElementById('baguioMapSvg').addEventListener('click', (e) => {
+            if (e.target.closest('.hazard-pin') || e.target.closest('.landmark-dot') || e.target.closest('.road-base')) {
+                return;
+            }
+            const svg = document.getElementById('baguioMapSvg');
+            const rect = svg.getBoundingClientRect();
+            const svgX = ((e.clientX - rect.left) / rect.width) * 800;
+            const svgY = ((e.clientY - rect.top) / rect.height) * 620;
+            const nearest = findNearestNodeBySvg(svgX, svgY);
+
+            applyUserGpsLocation({
+                lat: nearest.lat,
+                lng: nearest.lng,
+                isSimulated: true,
+                forcedNodeId: nearest.id
+            });
+            showToast('📍 GPS Pin Updated', `Snapped your location to ${nearest.name}.`, 'gps');
+        });
+
+        document.getElementById('simulateDriveBtn').addEventListener('click', () => {
+            if (!navState.active) return;
+            navState.isDriving = !navState.isDriving;
+            document.getElementById('simulateDriveBtn').textContent = navState.isDriving ? '⏸ Pause Drive' : '▶ Resume Drive';
+        });
+
+        document.getElementById('startGpsBtn').addEventListener('click', () => {
+            const origin = document.getElementById('originSelect').value;
+            const dest = document.getElementById('destSelect').value;
+            startInAppNavigation(origin, dest, origin === '__MY_GPS__');
+        });
+
+        document.getElementById('stopGpsBtn').addEventListener('click', () => {
+            stopInAppNavigation();
+            showToast('Navigation Stopped', 'Turn-by-turn guidance ended.', 'gps');
+        });
+
+        document.getElementById('swapLocationsBtn').addEventListener('click', () => {
+            const o = document.getElementById('originSelect');
+            const d = document.getElementById('destSelect');
+            if (o.value === '__MY_GPS__') {
+                o.value = userGpsState.snappedNodeId;
+            }
+            const temp = o.value;
+            o.value = d.value;
+            d.value = temp;
+        });
+
+        // Sound Toggle
+        const soundToggleBtn = document.getElementById('soundToggleBtn');
+        soundToggleBtn.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled) {
+                soundToggleBtn.textContent = '🔊 Audio On';
+                soundToggleBtn.classList.remove('btn-secondary');
+                soundToggleBtn.classList.add('btn-sound-active');
+                playWazeChime('gps');
+                showToast('Waze Audio Chimes Enabled', 'Voice/chime alerts active for closures, accidents & reroutes.', 'gps');
+            } else {
+                soundToggleBtn.textContent = '🔇 Audio Off';
+                soundToggleBtn.classList.remove('btn-sound-active');
+                soundToggleBtn.classList.add('btn-secondary');
+            }
+        });
+
+        // Filters & Search
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.getAttribute('data-filter');
+                renderCards();
+            });
+        });
+
+        document.getElementById('searchInput').addEventListener('input', renderCards);
+
+        // Live Sync Button
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            const btn = document.getElementById('refreshBtn');
+            const statusText = document.getElementById('statusText');
+            btn.textContent = '⏳ Syncing...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                trafficData = trafficData.map(item => {
+                    if (item.category === 'critical') return { ...item, speed: '0 km/h' };
+                    const match = item.speed.match(/(\d+)/);
+                    if (match) {
+                        const base = parseInt(match[1], 10);
+                        const delta = Math.floor(Math.random() * 5) - 2;
+                        const newSpeed = Math.max(6, base + delta) + ' km/h';
+                        return {
+                            ...item,
+                            speed: newSpeed,
+                            sub: item.sub.replace(/\d+\s*km\/h/, newSpeed)
+                        };
+                    }
+                    return item;
+                });
+
+                saveTrafficData();
+                renderCards();
+
+                const now = new Date().toLocaleTimeString();
+                statusText.textContent = `Synced ${now} • Live Baguio Telemetry`;
+                btn.textContent = '🔄 Sync Live';
+                btn.disabled = false;
+            }, 500);
+        });
+
+        // Reset Demo Data
+        document.getElementById('resetDataBtn').addEventListener('click', () => {
+            trafficData = JSON.parse(JSON.stringify(defaultTrafficData));
+            saveTrafficData();
+            currentFilter = 'all';
+            filterBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-filter') === 'all'));
+            document.getElementById('searchInput').value = '';
+            renderCards();
+            if (navState.active) {
+                startInAppNavigation(navState.originId, navState.destId);
+            }
+            showToast('Demo Dataset Restored', 'Default Baguio & Benguet road closures and hazards reloaded.', 'gps');
+        });
+
+        // Report Hazard Modal Controls
+        document.getElementById('inputCategory').addEventListener('change', (e) => {
+            const speedInput = document.getElementById('inputSpeed');
+            if (e.target.value === 'critical') {
+                speedInput.value = '0 km/h';
+            } else if (speedInput.value === '0 km/h') {
+                speedInput.value = '';
+            }
+        });
+
+        document.getElementById('closeModalBtn').addEventListener('click', () => closeModal('detailModal'));
+        document.getElementById('closeModalFooterBtn').addEventListener('click', () => closeModal('detailModal'));
+        document.getElementById('closeAddModalBtn').addEventListener('click', () => closeModal('addModal'));
+        document.getElementById('cancelAddModalBtn').addEventListener('click', () => closeModal('addModal'));
+        document.getElementById('addIncidentBtn').addEventListener('click', () => {
+            // Auto-fill user's currently detected road corridor & landmark if GPS is active
+            if (userGpsState.detected) {
+                const corrSelect = document.getElementById('inputCorridor');
+                const subInput = document.getElementById('inputSub');
+                if (userGpsState.snappedCorridorId) {
+                    corrSelect.value = userGpsState.snappedCorridorId;
+                }
+                const node = MAP_NODES[userGpsState.snappedNodeId];
+                if (node && !subInput.value) {
+                    subInput.value = `Near ${node.name.split('(')[0].trim()}`;
+                }
+            }
+            document.getElementById('addModal').style.display = 'flex';
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) e.target.style.display = 'none';
+        });
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal('detailModal');
+                closeModal('addModal');
+            }
+        });
+
+        // Submit New Hazard Pin
+        document.getElementById('incidentForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const corridorId = document.getElementById('inputCorridor').value;
+            const corridorObj = ROAD_CORRIDORS.find(c => c.id === corridorId);
+            const sub = document.getElementById('inputSub').value.trim();
+            const category = document.getElementById('inputCategory').value;
+            const hazard = document.getElementById('inputHazard').value.trim();
+            let speed = document.getElementById('inputSpeed').value.trim();
+            const detour = document.getElementById('inputDetour').value.trim();
+            const desc = document.getElementById('inputDesc').value.trim();
+
+            if (category === 'critical') speed = '0 km/h';
+
+            const badgeMap = {
+                critical: 'Not Passable',
+                accident: 'Accident',
+                danger: 'Heavy Jam',
+                warning: 'Road Work',
+                success: 'Clear Route'
+            };
+
+            const statusTag = category === 'critical' ? ' (NOT PASSABLE)' : '';
+            const newIncident = {
+                id: Date.now(),
+                corridorId,
+                location: corridorObj ? corridorObj.name : 'Baguio Corridor',
+                sub: `${sub} • Speed: ${speed}${statusTag}`,
+                category,
+                badgeText: badgeMap[category],
+                hazard,
+                speed,
+                detour,
+                desc,
+                confirmations: 1
+            };
+
+            trafficData.unshift(newIncident);
+            saveTrafficData();
+            renderCards();
+            closeModal('addModal');
+            document.getElementById('incidentForm').reset();
+
+            if (category === 'critical' || category === 'accident') {
+                playWazeChime(category);
+                showToast(
+                    category === 'critical' ? `⛔ ROAD CLOSED: ${newIncident.location}` : `💥 ACCIDENT PIN DROPPED: ${newIncident.location}`,
+                    `${hazard} at ${sub}. Routing engine updated.`,
+                    category
+                );
+            } else {
+                showToast(`Pin Added: ${newIncident.location}`, `${badgeMap[category]} • ${hazard}`, 'gps');
+            }
+
+            // Auto-reroute if active navigation is affected
+            if (navState.active) {
+                startInAppNavigation(navState.originId, navState.destId);
+            }
+        });
+
+        // Rain overlay generator
+        const rainContainer = document.getElementById('rain');
+        for (let i = 0; i < 32; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'drop';
+            drop.style.left = (Math.random() * 100) + '%';
+            drop.style.animationDuration = (0.55 + Math.random() * 0.45) + 's';
+            drop.style.animationDelay = (Math.random() * 2) + 's';
+            rainContainer.appendChild(drop);
+        }
+
+        // Boot Application
+        initStaticMapBackground();
+        populateSelectors();
+        renderCards();
+
+        setTimeout(() => {
+            showToast(
+                '⛔ Kennon Road Closed (Landslide)',
+                'Select Burnham Park → Kennon Viewpoint and press "Go Now" to see Waze auto-detour!',
+                'critical'
+            );
+        }, 700);
+    </script>
+</body>
+</html>
